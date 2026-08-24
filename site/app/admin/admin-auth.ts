@@ -15,10 +15,15 @@ function base64UrlToText(value: string) {
     return new TextDecoder().decode(Uint8Array.from(atob(padded), (char) => char.charCodeAt(0)));
   } catch { return ""; }
 }
-async function sha256(value: string) { return bytesToBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))); }
 async function sign(value: string) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(process.env.ADMIN_SESSION_SECRET || ""), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return bytesToBase64Url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value))));
+}
+function bytesToHex(bytes: Uint8Array) {
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+async function sha256Hex(value: string) {
+  return bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))));
 }
 function safeEqual(a: string, b: string) {
   if (a.length !== b.length) return false;
@@ -28,7 +33,7 @@ function safeEqual(a: string, b: string) {
 }
 
 export async function verifyAdminCredentials(username: string, password: string) {
-  return safeEqual(username, process.env.ADMIN_USERNAME || "") && safeEqual(await sha256(password), process.env.ADMIN_PASSWORD_HASH || "");
+  return safeEqual(username, process.env.ADMIN_USERNAME || "") && safeEqual(await sha256Hex(password), process.env.ADMIN_PASSWORD_HASH || "");
 }
 export async function createAdminSession(username: string) {
   const payload = textToBase64Url(JSON.stringify({ username, expires: Math.floor(Date.now() / 1000) + SESSION_SECONDS }));
