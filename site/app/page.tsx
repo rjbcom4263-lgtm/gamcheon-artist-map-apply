@@ -179,6 +179,6 @@ export default function Home() {
         </section>
       </div>
     </main>
-    <footer className="site-footer"><span>감천 작가 지도 시범 운영</span><a href="/admin">운영자 로그인</a></footer>
+    <footer className="site-footer"><span>감천 작가 지도 시범 운영</span><a href="/login">로그인</a></footer>
   </div>;
 }

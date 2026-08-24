@@ -19,3 +19,22 @@ CREATE INDEX IF NOT EXISTS idx_artist_applications_created_at
 CREATE INDEX IF NOT EXISTS idx_artist_applications_status
   ON artist_applications (status);
 
+CREATE TABLE IF NOT EXISTS accounts (
+  id TEXT PRIMARY KEY NOT NULL,
+  login_id TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'artist')),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'active', 'suspended', 'deleted')),
+  display_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_login_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_accounts_role
+  ON accounts (role);
+
+CREATE INDEX IF NOT EXISTS idx_accounts_status
+  ON accounts (status);
