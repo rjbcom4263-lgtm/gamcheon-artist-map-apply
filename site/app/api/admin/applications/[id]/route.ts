@@ -3,6 +3,7 @@ import { requireAdmin } from "../../../../admin/admin-auth";
 
 export const runtime = "edge";
 const allowedStatuses = new Set(["received", "reviewing", "approved", "hold", "rejected", "cancelled"]);
+type ImageRecord = { key?: string };
 
 async function authorized() {
   return !!await requireAdmin();
@@ -24,4 +25,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const result = await env.DB.prepare("UPDATE artist_applications SET status = ?, payload_json = ? WHERE id = ?").bind(body.status, payloadJson, id).run();
   if (!result.meta.changes) return Response.json({ error: "신청서를 찾을 수 없습니다." }, { status: 404 });
   return Response.json({ ok: true, status: body.status, payload_json: payloadJson });
+}
+
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!await authorized()) return Response.json({ error: "권한이 없습니다." }, { status: 403 });
+  const { id } = await context.params;
+  const current = await env.DB.prepare("SELECT image_keys_json FROM artist_applications WHERE id = ?").bind(id).first<{ image_keys_json: string }>();
+  if (!current) return Response.json({ error: "신청서를 찾을 수 없습니다." }, { status: 404 });
+
+  let images: ImageRecord[] = [];
+  try { images = JSON.parse(current.image_keys_json); } catch {}
+  const imageKeys = images
+    .map((image) => image.key || "")
+    .filter((key) => key.startsWith(`applications/${id}/`) && !key.includes(".."));
+
+  const result = await env.DB.prepare("DELETE FROM artist_applications WHERE id = ?").bind(id).run();
+  if (!result.meta.changes) return Response.json({ error: "신청서를 찾을 수 없습니다." }, { status: 404 });
+  await Promise.allSettled(imageKeys.map((key) => env.BUCKET.delete(key)));
+  return Response.json({ ok: true, deletedImages: imageKeys.length });
 }

@@ -76,6 +76,20 @@ export default function AdminDashboard({ initial, adminName }: { initial: Applic
     setSelected((current) => current?.id === id ? { ...current, status, payload_json: result.payload_json } : current);
   }
 
+  async function deleteApplication(id: string) {
+    const target = rows.find((row) => row.id === id);
+    if (!target || !confirm(`${target.artist_name} 신청서를 삭제할까요?\n연결된 이미지 파일도 함께 삭제됩니다.`)) return;
+    setSaving(id);
+    const response = await fetch(`/api/admin/applications/${encodeURIComponent(id)}`, { method: "DELETE" });
+    setSaving("");
+    if (!response.ok) return alert("신청서를 삭제하지 못했습니다.");
+    setRows((current) => {
+      const nextRows = current.filter((row) => row.id !== id);
+      setSelected((currentSelected) => currentSelected?.id === id ? nextRows[0] || null : currentSelected);
+      return nextRows;
+    });
+  }
+
   const payload = selected ? parse<Payload>(selected.payload_json, {}) : {};
   const images = selected ? parse<ImageRecord[]>(selected.image_keys_json, []) : [];
   const values = payload.values || {};
@@ -101,7 +115,7 @@ export default function AdminDashboard({ initial, adminName }: { initial: Applic
         <div className="application-detail">
           {!selected ? <div className="admin-empty">확인할 신청서를 선택해주세요.</div> : <>
             <div className="detail-title"><div><span>{selected.id}</span><h2>{selected.artist_name}</h2></div><select value={selected.status} disabled={saving === selected.id} onChange={(e) => changeStatus(selected.id, e.target.value)} aria-label="신청 상태 변경">{Object.entries(STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>
-            <section className="review-panel"><div><strong>운영자 처리</strong><span>반려·취소 사유를 기록하면 처리 시각과 함께 보관됩니다.</span></div><textarea value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="예: 필수 작품 정보가 부족하여 보완 요청 후 반려 처리"/><div className="review-actions"><button disabled={saving === selected.id} onClick={() => changeStatus(selected.id, "received")}>접수로 복구</button><button disabled={saving === selected.id} onClick={() => changeStatus(selected.id, "cancelled")}>신청자 취소</button><button className="reject" disabled={saving === selected.id} onClick={() => changeStatus(selected.id, "rejected")}>반려 처리</button></div>{payload.adminReview?.processedAt && <small>최근 처리: {date(payload.adminReview.processedAt)}</small>}</section>
+            <section className="review-panel"><div><strong>운영자 처리</strong><span>반려·취소 사유를 기록하면 처리 시각과 함께 보관됩니다.</span></div><textarea value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="예: 필수 작품 정보가 부족하여 보완 요청 후 반려 처리"/><div className="review-actions"><button disabled={saving === selected.id} onClick={() => changeStatus(selected.id, "received")}>접수로 복구</button><button disabled={saving === selected.id} onClick={() => changeStatus(selected.id, "cancelled")}>신청자 취소</button><button className="reject" disabled={saving === selected.id} onClick={() => changeStatus(selected.id, "rejected")}>반려 처리</button><button className="delete" disabled={saving === selected.id} onClick={() => deleteApplication(selected.id)}>접수 삭제</button></div>{payload.adminReview?.processedAt && <small>최근 처리: {date(payload.adminReview.processedAt)}</small>}</section>
             <DetailSection title="기본 정보"><Info label="작가명" value={selected.artist_name}/><Info label="한 줄 소개" value={String(values.tagline || "-")}/><Info label="작품 분야" value={payload.categories?.join(", ") || "-"}/><Info label="활동 경력" value={String(values.career || "-")}/><Info label="작가 소개" value={String(values.introduction || values.bio || "-")}/></DetailSection>
             <DetailSection title="연락 및 공방"><Info label="휴대전화" value={selected.phone}/><Info label="이메일" value={selected.email || "-"}/><Info label="공방명" value={String(values.studioName || "-")}/><Info label="주소" value={String(values.address || values.studioAddress || "-")}/><Info label="온라인 채널" value={String(values.onlineChannel || values.instagram || "-")}/></DetailSection>
             <DetailSection title={`대표 작품 ${payload.works?.length || 0}점`} wide>{payload.works?.map((work, index) => <article className="admin-work" key={work.id || index}><div><strong>{index + 1}. {work.title || "작품명 없음"}</strong><span>{work.status || ""}</span></div><p>{work.description || "작품 설명이 없습니다."}</p>{images.find((x) => x.type === "work" && x.workIndex === index) && <img src={`/api/admin/images?key=${encodeURIComponent(images.find((x) => x.type === "work" && x.workIndex === index)!.key)}`} alt={`${work.title || "대표 작품"} 이미지`}/>}</article>) || <p>-</p>}</DetailSection>
