@@ -122,7 +122,7 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
     <aside className="dash-sidebar">
       <a href="/" className="dash-logo"><span>감</span><strong>감천 작가 지도</strong></a>
       <nav>
-        <button className={view === "applications" ? "active" : ""} onClick={() => setView("applications")}><span>◆</span>신청 관리</button>
+        <div className="nav-group"><p>신청 관리</p><button className={view === "applications" ? "active" : ""} onClick={() => setView("applications")}><span>◆</span>신청 목록</button></div>
         <button className={view === "accounts" ? "active" : ""} onClick={() => setView("accounts")}><span>●</span>계정 관리</button>
       </nav>
       <div className="dash-sidebar-card"><strong>{adminName}</strong><span>운영자 계정</span><a href="/api/admin/logout">로그아웃</a></div>
@@ -159,7 +159,7 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
         </div>
 
         <div className="dash-card detail-card">
-          {!selected ? <div className="admin-empty">확인할 신청서를 선택해주세요.</div> : <>
+          {!selected ? <div className="admin-empty">신청 목록에서 처리할 접수를 선택해주세요.</div> : <>
             <div className="detail-title"><div><span>{selected.id}</span><h2>{selected.artist_name}</h2></div><select value={selected.status} disabled={saving === selected.id} onChange={(e) => changeStatus(selected.id, e.target.value)}>{Object.entries(STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>
             <section className="review-panel"><div><strong>운영자 처리</strong><span>반려·취소 시 사유를 기록합니다.</span></div><textarea value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="처리 사유 또는 내부 메모"/><div className="review-actions"><button disabled={saving === selected.id} onClick={() => changeStatus(selected.id, "received")}>접수</button><button disabled={saving === selected.id} onClick={() => changeStatus(selected.id, "approved")}>승인</button><button className="reject" disabled={saving === selected.id} onClick={() => changeStatus(selected.id, "rejected")}>반려</button><button className="delete" disabled={saving === selected.id} onClick={() => deleteApplication(selected.id)}>삭제</button></div>{payload.adminReview?.processedAt && <small>최근 처리: {date(payload.adminReview.processedAt)}</small>}</section>
             <DetailSection title="기본 정보"><Info label="작가명" value={selected.artist_name}/><Info label="한 줄 소개" value={String(values.tagline || "-")}/><Info label="작품 분야" value={payload.categories?.join(", ") || "-"}/><Info label="작가 소개" value={String(values.introduction || values.bio || "-")}/></DetailSection>
