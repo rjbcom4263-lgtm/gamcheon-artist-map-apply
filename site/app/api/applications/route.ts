@@ -1,12 +1,15 @@
 import { env } from "cloudflare:workers";
 
 export const runtime = "edge";
+const REQUIRED_WORK_COUNT = 5;
 
 type Payload = {
+  applicationId?: string;
   values?: Record<string, string | boolean>;
   categories?: string[];
   works?: Array<{ id?: string; title?: string; status?: string; description?: string }>;
   expectedImages?: { profile?: boolean; works?: boolean[] };
+  uploadedImages?: Array<{ type?: string; workIndex?: number; key?: string; name?: string; contentType?: string }>;
 };
 
 function cleanText(value: unknown, max: number) {
@@ -16,6 +19,10 @@ function cleanText(value: unknown, max: number) {
 function safeFileName(file: File) {
   const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
   return `${crypto.randomUUID()}.${ext.slice(0, 8)}`;
+}
+
+function applicationId(value: unknown) {
+  return typeof value === "string" && /^GA-\d{8}-[A-F0-9]{6}$/.test(value) ? value : "";
 }
 
 export async function POST(request: Request) {
@@ -30,12 +37,23 @@ export async function POST(request: Request) {
     const phone = cleanText(values.phone, 30);
     const email = cleanText(values.email, 150);
     const categories = Array.isArray(payload.categories) ? payload.categories.slice(0, 12).map((x) => cleanText(x, 30)).filter(Boolean) : [];
-    const works = Array.isArray(payload.works) ? payload.works.slice(0, 5).map((w) => ({ id: cleanText(w.id, 80), title: cleanText(w.title, 150), status: cleanText(w.status, 40), description: cleanText(w.description, 1200) })) : [];
-    if (!artistName || !phone || !categories.length || !works[0]?.title) return Response.json({ error: "필수 신청 정보를 다시 확인해주세요." }, { status: 400 });
+    const works = Array.isArray(payload.works) ? payload.works.slice(0, REQUIRED_WORK_COUNT).map((w) => ({ id: cleanText(w.id, 80), title: cleanText(w.title, 150), status: cleanText(w.status, 40), description: cleanText(w.description, 1200) })) : [];
+    if (!artistName || !phone || !categories.length || works.length !== REQUIRED_WORK_COUNT || works.some((work) => !work.title)) return Response.json({ error: "대표 작품 5점의 필수 정보를 모두 입력해주세요." }, { status: 400 });
     if (!values.consentInfo || !values.consentImage || !values.consentPrivacy) return Response.json({ error: "필수 동의가 필요합니다." }, { status: 400 });
 
-    const id = `GA-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+    const id = applicationId(payload.applicationId) || `GA-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
     const imageRecords: Array<{ type: string; workIndex?: number; key: string; name: string; contentType: string }> = [];
+    if (Array.isArray(payload.uploadedImages)) {
+      for (const image of payload.uploadedImages) {
+        const type = image.type === "profile" || image.type === "work" ? image.type : "";
+        const workIndex = Number.isInteger(image.workIndex) ? image.workIndex : undefined;
+        const key = cleanText(image.key, 260);
+        const contentType = cleanText(image.contentType, 80);
+        if (!type || !key.startsWith(`applications/${id}/`) || !contentType.startsWith("image/")) continue;
+        if (type === "work" && (typeof workIndex !== "number" || workIndex < 0 || workIndex >= REQUIRED_WORK_COUNT)) continue;
+        imageRecords.push({ type, workIndex, key, name: cleanText(image.name, 180), contentType });
+      }
+    }
     const candidates: Array<{ key: string; type: string; workIndex?: number }> = [{ key: "profileImage", type: "profile" }, ...works.map((_, i) => ({ key: `workImage${i}`, type: "work", workIndex: i }))];
     for (const candidate of candidates) {
       const item = form.get(candidate.key);
@@ -52,6 +70,12 @@ export async function POST(request: Request) {
       await Promise.allSettled(uploaded.map((key) => env.BUCKET.delete(key)));
       uploaded.length = 0;
       return Response.json({ error: "선택한 사진이 모두 저장되지 않았습니다. 사진을 다시 선택해주세요." }, { status: 400 });
+    }
+    const workImageCount = imageRecords.filter((image) => image.type === "work").length;
+    if (workImageCount !== REQUIRED_WORK_COUNT) {
+      await Promise.allSettled(uploaded.map((key) => env.BUCKET.delete(key)));
+      uploaded.length = 0;
+      return Response.json({ error: "대표 작품 5점의 이미지를 모두 올려주세요." }, { status: 400 });
     }
 
     const safePayload = { values: { ...values, artistName, phone, email }, categories, works };

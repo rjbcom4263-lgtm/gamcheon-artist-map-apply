@@ -8,6 +8,8 @@ const STORAGE_KEY = "gamcheon_artist_apply_v2";
 
 type Work = { id: string; title: string; status: string; description: string; image?: File; preview?: string };
 type Values = Record<string, string | boolean>;
+type UploadedImage = { type: string; workIndex?: number; key: string; name: string; contentType: string };
+const REQUIRED_WORK_COUNT = 5;
 
 const initialValues: Values = {
   artistName: "", studioName: "", tagline: "", bio: "", address: "", locationPrivacy: "exact",
@@ -18,13 +20,14 @@ const initialValues: Values = {
 };
 
 function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
+function blankWork(): Work { return { id: uid(), title: "", status: "문의 필요", description: "" }; }
 
 export default function Home() {
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<Values>(initialValues);
   const [categories, setCategories] = useState<string[]>([]);
   const [customCategory, setCustomCategory] = useState("");
-  const [works, setWorks] = useState<Work[]>([{ id: uid(), title: "", status: "문의 필요", description: "" }]);
+  const [works, setWorks] = useState<Work[]>(Array.from({ length: REQUIRED_WORK_COUNT }, blankWork));
   const [profileImage, setProfileImage] = useState<File>();
   const [profilePreview, setProfilePreview] = useState("");
   const [saveLabel, setSaveLabel] = useState("자동 저장 준비");
@@ -40,7 +43,10 @@ export default function Home() {
       const draft = JSON.parse(raw);
       setValues({ ...initialValues, ...(draft.values || {}) });
       setCategories(draft.categories || []);
-      if (draft.works?.length) setWorks(draft.works.map((w: Work) => ({ ...w, image: undefined, preview: "" })));
+      if (draft.works?.length) {
+        const restored = draft.works.slice(0, REQUIRED_WORK_COUNT).map((w: Work) => ({ ...w, image: undefined, preview: "" }));
+        setWorks([...restored, ...Array.from({ length: Math.max(0, REQUIRED_WORK_COUNT - restored.length) }, blankWork)]);
+      }
       setStep(Math.min(Number(draft.step) || 0, 5));
       setSaveLabel("이전 임시 저장 불러옴");
     } catch { /* damaged drafts are ignored */ }
@@ -117,8 +123,9 @@ export default function Home() {
   function validate() {
     if (imageProcessing > 0) return "사진을 처리하고 있습니다. 잠시만 기다려주세요.";
     if (step === 0 && (!String(values.artistName).trim() || !String(values.tagline).trim() || !categories.length)) return "작가명, 작품 분야, 한 줄 소개를 입력해주세요.";
-    if (step === 1 && !works[0]?.title.trim()) return "첫 번째 대표 작품의 작품명을 입력해주세요.";
-    if (step === 1 && !works[0]?.image) return "첫 번째 대표 작품 이미지를 선택해주세요.";
+    if (step === 1 && works.length < REQUIRED_WORK_COUNT) return "대표 작품 5점을 모두 입력해주세요.";
+    if (step === 1 && works.some((work) => !work.title.trim())) return "대표 작품 5점의 작품명을 모두 입력해주세요.";
+    if (step === 1 && works.some((work) => !work.image)) return "대표 작품 5점의 이미지를 모두 선택해주세요.";
     if (step === 3 && !String(values.phone).trim()) return "운영진 연락용 휴대전화를 입력해주세요.";
     if (step === 5 && (!values.consentInfo || !values.consentImage || !values.consentPrivacy)) return "필수 동의 항목을 모두 확인해주세요.";
     return "";
@@ -131,18 +138,44 @@ export default function Home() {
     document.querySelector(".workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  async function uploadApplicationImage(applicationId: string, image: File, type: "profile" | "work", workIndex?: number) {
+    const data = new FormData();
+    data.set("applicationId", applicationId);
+    data.set("type", type);
+    if (typeof workIndex === "number") data.set("workIndex", String(workIndex));
+    data.set("image", image);
+    const response = await fetch("/api/applications/images", { method: "POST", body: data });
+    const result = await response.json().catch(() => ({})) as { image?: UploadedImage; error?: string };
+    if (!response.ok || !result.image) throw new Error(result.error || "이미지를 저장하지 못했습니다.");
+    return result.image;
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (step < 5) { next(); return; }
     const message = validate(); if (message) { alert(message); return; }
     setSubmitting(true); setError("");
-    const data = new FormData();
-    data.set("payload", JSON.stringify({ values, categories, works: works.map(({ id, title, status, description }) => ({ id, title, status, description })), expectedImages: { profile: Boolean(profileImage), works: works.map((work) => Boolean(work.image)) } }));
-    if (profileImage) data.set("profileImage", profileImage);
-    works.forEach((work, i) => { if (work.image) data.set(`workImage${i}`, work.image); });
-    const totalImageBytes = (profileImage?.size || 0) + works.reduce((sum, work) => sum + (work.image?.size || 0), 0);
-    if (totalImageBytes > 7 * 1024 * 1024) { setSubmitting(false); setError("사진 전체 용량이 큽니다. 작품 사진 수를 줄이거나 다시 선택해주세요."); return; }
     try {
+      setSaveLabel("신청 번호 발급 중...");
+      const initResponse = await fetch("/api/applications/init", { method: "POST" });
+      const init = await initResponse.json().catch(() => ({})) as { id?: string; error?: string };
+      if (!initResponse.ok || !init.id) throw new Error(init.error || "신청 번호를 만들지 못했습니다.");
+
+      const uploadedImages: UploadedImage[] = [];
+      const allImages = [
+        ...(profileImage ? [{ type: "profile" as const, image: profileImage }] : []),
+        ...works.map((work, index) => ({ type: "work" as const, image: work.image, workIndex: index })),
+      ];
+      for (let i = 0; i < allImages.length; i += 1) {
+        const item = allImages[i];
+        if (!item.image) continue;
+        setSaveLabel(`사진 저장 중 ${i + 1} / ${allImages.length}`);
+        uploadedImages.push(await uploadApplicationImage(init.id, item.image, item.type, item.workIndex));
+      }
+
+      setSaveLabel("신청서 저장 중...");
+      const data = new FormData();
+      data.set("payload", JSON.stringify({ applicationId: init.id, values, categories, works: works.map(({ id, title, status, description }) => ({ id, title, status, description })), expectedImages: { profile: Boolean(profileImage), works: works.map((work) => Boolean(work.image)) }, uploadedImages }));
       const response = await fetch("/api/applications", { method: "POST", body: data });
       const contentType = response.headers.get("content-type") || "";
       const result = contentType.includes("application/json") ? await response.json() : { error: await response.text() };
@@ -158,7 +191,7 @@ export default function Home() {
     <header className="topbar"><div className="topbar-inner"><div className="brand"><div className="brand-mark">✦</div><div>감천 작가 지도<small>GAMCHEON ARTIST MAP</small></div></div><div className="save-state">{saveLabel}</div></div></header>
     <main>
       <section className="hero">
-        <div className="hero-card"><div className="eyebrow">ARTIST REGISTRATION · PILOT</div><h1>감천의 작가를<br />관광객에게 연결합니다.</h1><p>작가와 작품, 공방 정보를 등록하면 감천 작가 지도 시범 서비스에 반영할 수 있도록 준비합니다. 작성한 내용은 운영진 확인 후 공개됩니다.</p><div className="hero-note"><span className="pill">약 5~10분</span><span className="pill">대표작 1~5점</span><span className="pill">모바일 신청</span><span className="pill">임시 저장</span></div></div>
+        <div className="hero-card"><div className="eyebrow">ARTIST REGISTRATION · PILOT</div><h1>감천의 작가를<br />관광객에게 연결합니다.</h1><p>작가와 작품, 공방 정보를 등록하면 감천 작가 지도 시범 서비스에 반영할 수 있도록 준비합니다. 작성한 내용은 운영진 확인 후 공개됩니다.</p><div className="hero-note"><span className="pill">약 5~10분</span><span className="pill">대표작 5점 필수</span><span className="pill">모바일 신청</span><span className="pill">임시 저장</span></div></div>
         <aside className="side-card"><div><div className="side-title">등록된 정보는 이렇게 이어집니다.</div><div className="flow">{["작가 카드와 작품 상세 페이지", "분야별 필터와 지도 마커", "공방 방문 정보와 온라인 채널", "향후 ART PASSPORT 연동"].map((x, i) => <div className="flow-row" key={x}><div className="flow-dot">{i + 1}</div><span>{x}</span></div>)}</div></div><div className="side-callout">웹 이용이 어려운 작가님은 동일 항목의 종이 신청서로 접수하고 운영진이 대신 등록할 수 있습니다.</div></aside>
       </section>
       <div className="workspace">
@@ -168,7 +201,7 @@ export default function Home() {
             <div className="progress-wrap"><div className="progress-head"><span>{step + 1} / {STEPS.length}</span><span>{progress}%</span></div><div className="progress"><span style={{ width: `${progress}%` }} /></div></div>
             <form onSubmit={submit} noValidate><div className="form-head"><div><h2>{currentTitle}</h2><p>{currentDesc}</p></div></div>
               {step === 0 && <div className="section active"><div className="grid-2"><div className="field"><label>작가명 / 활동명 <b>*</b></label>{input("artistName", "text", "예: 홍길동 / 길동작가", true)}</div><div className="field"><label>공방·작업실 이름</label>{input("studioName", "text", "없으면 비워두셔도 됩니다")}</div></div><div className="field"><label>작품 분야 <b>*</b></label><div className="chips">{CATEGORIES.map((c) => <button type="button" key={c} className={`chip ${categories.includes(c) ? "selected" : ""}`} onClick={() => setCategories((list) => list.includes(c) ? list.filter((x) => x !== c) : [...list, c])}>{c}</button>)}{categories.filter((c) => !CATEGORIES.includes(c)).map((c) => <button type="button" key={c} className="chip selected custom-chip" onClick={() => setCategories((list) => list.filter((x) => x !== c))}>{c} ×</button>)}</div><div className="custom-category"><input value={customCategory} maxLength={30} placeholder="목록에 없다면 직접 입력" onChange={(e) => setCustomCategory(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomCategory(); } }}/><button type="button" onClick={addCustomCategory}>분야 추가</button></div><small>복수 선택이 가능하며, 없는 분야는 직접 입력할 수 있습니다.</small></div><div className="field"><label>작가 한 줄 소개 <b>*</b></label>{input("tagline", "text", "예: 감천의 풍경과 사람을 민화로 기록합니다.", true)}<small>관광객이 카드에서 가장 먼저 읽는 문장입니다.</small></div><div className="field"><label>작가 소개</label>{textArea("bio", "작업 세계, 재료, 감천과의 관계 등을 자유롭게 소개해주세요.")}</div><div className="field"><label>프로필 / 대표 이미지</label><label className="upload"><input type="file" accept="image/*" onChange={(e) => pickImage(e, "profile")} /><span className="plus">＋</span><strong>{imageProcessing ? "사진 처리 중…" : "이미지 선택"}</strong><small>고화질 사진도 자동으로 용량을 줄여 저장합니다.</small></label>{profilePreview && <><img src={profilePreview} className="preview" alt="프로필 미리보기" /><small className="image-ready">✓ 저장할 사진 준비 완료 · {profileImage?.name}</small></>}</div></div>}
-              {step === 1 && <div className="section active"><div className="info-panel"><strong>대표작 1점은 이미지까지 필수, 최대 5점까지</strong><p>관광객이 작품을 먼저 보고 작가와 공간을 발견할 수 있도록 선명한 사진을 올려주세요.</p></div>{works.map((work, i) => <div className="work-card" key={work.id}><div className="work-card-head"><strong>대표 작품 {i + 1}{i === 0 ? " · 필수" : ""}</strong>{works.length > 1 && <button type="button" className="ghost danger" onClick={() => setWorks((l) => l.filter((w) => w.id !== work.id))}>삭제</button>}</div><div className="grid-2"><div className="field"><label>작품명 {i === 0 && <b>*</b>}</label><input value={work.title} placeholder="작품명" onChange={(e) => setWorks((l) => l.map((w) => w.id === work.id ? { ...w, title: e.target.value } : w))} /></div><div className="field"><label>작품 상태</label><select value={work.status} onChange={(e) => setWorks((l) => l.map((w) => w.id === work.id ? { ...w, status: e.target.value } : w))}>{["판매 가능", "전시 작품", "문의 필요", "판매하지 않음"].map((o) => <option key={o}>{o}</option>)}</select></div></div><div className="field"><label>작품 설명</label><textarea value={work.description} placeholder="관광객이 작품을 이해할 수 있는 짧은 설명" onChange={(e) => setWorks((l) => l.map((w) => w.id === work.id ? { ...w, description: e.target.value } : w))} /></div><div className="field"><label>작품 이미지 {i === 0 && <b>*</b>}</label><label className="upload compact"><input type="file" accept="image/*" onChange={(e) => pickImage(e, "work", work.id)} /><span className="plus">＋</span><strong>{imageProcessing ? "사진 처리 중…" : "작품 이미지 선택"}</strong></label>{work.preview && <><img src={work.preview} className="preview" alt={`${work.title || "작품"} 미리보기`} /><small className="image-ready">✓ 저장할 사진 준비 완료 · {work.image?.name}</small></>}</div></div>)}<button type="button" className="secondary" onClick={() => works.length < 5 ? setWorks((l) => [...l, { id: uid(), title: "", status: "문의 필요", description: "" }]) : alert("대표 작품은 최대 5점까지 등록할 수 있습니다.")}>＋ 작품 추가</button></div>}
+              {step === 1 && <div className="section active"><div className="info-panel"><strong>대표작 5점 모두 이미지 필수</strong><p>작가님의 작품을 충분히 보여줄 수 있도록 대표 작품 5점의 이름, 설명, 사진을 등록해주세요.</p></div>{works.map((work, i) => <div className="work-card" key={work.id}><div className="work-card-head"><strong>대표 작품 {i + 1} · 필수</strong></div><div className="grid-2"><div className="field"><label>작품명 <b>*</b></label><input value={work.title} placeholder="작품명" onChange={(e) => setWorks((l) => l.map((w) => w.id === work.id ? { ...w, title: e.target.value } : w))} /></div><div className="field"><label>작품 상태</label><select value={work.status} onChange={(e) => setWorks((l) => l.map((w) => w.id === work.id ? { ...w, status: e.target.value } : w))}>{["판매 가능", "전시 작품", "문의 필요", "판매하지 않음"].map((o) => <option key={o}>{o}</option>)}</select></div></div><div className="field"><label>작품 설명</label><textarea value={work.description} placeholder="관광객이 작품을 이해할 수 있는 짧은 설명" onChange={(e) => setWorks((l) => l.map((w) => w.id === work.id ? { ...w, description: e.target.value } : w))} /></div><div className="field"><label>작품 이미지 <b>*</b></label><label className="upload compact"><input type="file" accept="image/*" onChange={(e) => pickImage(e, "work", work.id)} /><span className="plus">＋</span><strong>{imageProcessing ? "사진 처리 중…" : "작품 이미지 선택"}</strong></label>{work.preview && <><img src={work.preview} className="preview" alt={`${work.title || "작품"} 미리보기`} /><small className="image-ready">✓ 저장할 사진 준비 완료 · {work.image?.name}</small></>}</div></div>)}</div>}
               {step === 2 && <div className="section active"><div className="field"><label>공방 주소</label>{input("address", "text", "예: 부산 사하구 감내2로 ...")}<small>공개 범위에 따라 실제 지도에는 다르게 표시됩니다.</small></div><div className="field"><label>위치 공개 범위</label><div className="choice-list">{[["exact", "정확한 공방 위치 공개", "지도 마커와 주소를 공개합니다."], ["nearby", "근처 위치만 공개", "정확한 작업실 주소는 숨깁니다."], ["reservation", "예약 방문객에게만 안내", "세부 주소는 별도로 안내합니다."]].map(([v, t, d]) => <label className="choice" key={v}><input type="radio" checked={values.locationPrivacy === v} onChange={() => update("locationPrivacy", v)} /><span><strong>{t}</strong><small>{d}</small></span></label>)}</div></div><div className="field"><label>방문 방식</label>{select("visitType", ["자유 방문 가능", "운영시간 내 방문 가능", "사전 예약 필요", "일반 방문 불가"])}</div><div className="field"><label>운영시간</label>{textArea("hours", "예: 화~일 11:00~18:00 / 월요일 휴무")}</div><div className="field"><label>체험 프로그램</label>{select("experience", ["없음", "있음", "준비 중"])}</div><div className="field"><label>체험 설명</label>{textArea("experienceDesc", "체험명, 소요시간, 예약 여부 등을 간단히 적어주세요.")}</div></div>}
               {step === 3 && <div className="section active"><div className="grid-2"><div className="field"><label>Instagram</label>{input("instagram", "url", "https://instagram.com/...")}</div><div className="field"><label>홈페이지</label>{input("website", "url", "https://...")}</div></div><div className="field"><label>온라인 판매처</label>{input("shopUrl", "url", "스마트스토어 등")}</div><div className="info-panel"><strong>운영진 연락용</strong><p>아래 정보는 확인·연락을 위해서만 사용하며 관광객에게 공개하지 않습니다.</p></div><div className="grid-2"><div className="field"><label>휴대전화 <b>*</b></label>{input("phone", "tel", "010-0000-0000", true)}</div><div className="field"><label>이메일</label>{input("email", "email", "artist@example.com")}</div></div></div>}
               {step === 4 && <div className="section active"><div className="passport-preview"><div className="passport-book"><strong>ART<br />PASSPORT</strong><small>GAMCHEON · BUSAN</small></div><div><strong>실물 여권 + 작가별 스탬프 + NFC 작가 카드</strong><small>작가 공간 방문을 수집 가능한 관광 경험으로 확장하는 방향입니다.</small></div></div><div className="field"><label>작가 스탬프 프로젝트</label>{select("stampInterest", ["참여하고 싶음", "자세한 설명을 듣고 결정하고 싶음", "현재는 참여 의사 없음"])}</div><div className="field"><label>NFC 작가 카드</label>{select("nfcInterest", ["참여하고 싶음", "자세한 설명을 듣고 결정하고 싶음", "현재는 참여 의사 없음"])}</div><div className="field"><label>감천 작가 지도에 바라는 기능이나 의견</label>{textArea("feedback", "관광객에게 꼭 보여주고 싶은 정보, 우려되는 점, 필요한 기능 등을 적어주세요.")}</div></div>}
