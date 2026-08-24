@@ -12,6 +12,17 @@ export type Application = {
   image_keys_json: string;
   created_at: string;
 };
+export type Account = {
+  id: string;
+  login_id: string;
+  role: string;
+  status: string;
+  display_name: string;
+  phone: string;
+  email: string;
+  created_at: string;
+  last_login_at: string | null;
+};
 
 type Work = { id?: string; title?: string; status?: string; description?: string };
 type Payload = { values?: Record<string, string | boolean>; categories?: string[]; works?: Work[]; adminReview?: { note?: string; processedAt?: string; status?: string } };
@@ -25,6 +36,12 @@ const STATUS = {
   rejected: "반려",
   cancelled: "신청자 취소",
 } as const;
+const ACCOUNT_STATUS = {
+  pending: "승인 대기",
+  active: "활성",
+  suspended: "정지",
+  deleted: "삭제됨",
+} as const;
 
 function parse<T>(value: string, fallback: T): T {
   try { return JSON.parse(value) as T; } catch { return fallback; }
@@ -34,8 +51,9 @@ function date(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value + (value.endsWith("Z") ? "" : "Z")));
 }
 
-export default function AdminDashboard({ initial, adminName }: { initial: Application[]; adminName: string }) {
+export default function AdminDashboard({ initial, initialAccounts, adminName }: { initial: Application[]; initialAccounts: Account[]; adminName: string }) {
   const [rows, setRows] = useState(initial);
+  const [accounts, setAccounts] = useState(initialAccounts);
   const [selected, setSelected] = useState<Application | null>(initial[0] || null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
@@ -90,6 +108,28 @@ export default function AdminDashboard({ initial, adminName }: { initial: Applic
     });
   }
 
+  async function changeAccountStatus(id: string, status: string) {
+    setSaving(id);
+    const response = await fetch(`/api/admin/accounts/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    setSaving("");
+    if (!response.ok) return alert("계정 상태를 변경하지 못했습니다.");
+    setAccounts((current) => current.map((account) => account.id === id ? { ...account, status } : account));
+  }
+
+  async function deleteAccount(id: string) {
+    const target = accounts.find((account) => account.id === id);
+    if (!target || !confirm(`${target.display_name || target.login_id} 계정을 삭제할까요?`)) return;
+    setSaving(id);
+    const response = await fetch(`/api/admin/accounts/${encodeURIComponent(id)}`, { method: "DELETE" });
+    setSaving("");
+    if (!response.ok) return alert("계정을 삭제하지 못했습니다.");
+    setAccounts((current) => current.filter((account) => account.id !== id));
+  }
+
   const payload = selected ? parse<Payload>(selected.payload_json, {}) : {};
   const images = selected ? parse<ImageRecord[]>(selected.image_keys_json, []) : [];
   const values = payload.values || {};
@@ -103,6 +143,24 @@ export default function AdminDashboard({ initial, adminName }: { initial: Applic
         <button onClick={() => setFilter("received")} className={filter === "received" ? "active" : ""}><span>신규 접수</span><strong>{counts.received}</strong></button>
         <button onClick={() => setFilter("reviewing")} className={filter === "reviewing" ? "active" : ""}><span>검토 중</span><strong>{counts.reviewing}</strong></button>
         <button onClick={() => setFilter("approved")} className={filter === "approved" ? "active" : ""}><span>승인 완료</span><strong>{counts.approved}</strong></button>
+      </section>
+      <section className="account-section">
+        <div className="account-heading"><div><p>ACCOUNT MANAGEMENT</p><h2>회원가입 계정 관리</h2><span>비밀번호는 보안상 원문을 저장하지 않아 볼 수 없습니다. 필요하면 초기화 기능으로 처리합니다.</span></div><strong>{accounts.length}개 계정</strong></div>
+        <div className="account-table">
+          <div className="account-row account-head"><span>아이디</span><span>작가명</span><span>연락처</span><span>상태</span><span>가입일</span><span>관리</span></div>
+          {accounts.length ? accounts.map((account) => <div className="account-row" key={account.id}>
+            <span><strong>{account.login_id}</strong><small>{account.email || "이메일 없음"}</small></span>
+            <span>{account.display_name || "-"}</span>
+            <span>{account.phone || "-"}</span>
+            <span><em className={`account-badge account-${account.status}`}>{ACCOUNT_STATUS[account.status as keyof typeof ACCOUNT_STATUS] || account.status}</em></span>
+            <span>{date(account.created_at)}</span>
+            <span className="account-actions">
+              <button disabled={saving === account.id} onClick={() => changeAccountStatus(account.id, "active")}>활성</button>
+              <button disabled={saving === account.id} onClick={() => changeAccountStatus(account.id, "suspended")}>정지</button>
+              <button className="delete" disabled={saving === account.id} onClick={() => deleteAccount(account.id)}>삭제</button>
+            </span>
+          </div>) : <div className="admin-empty">회원가입한 작가 계정이 없습니다.</div>}
+        </div>
       </section>
       <section className="admin-workspace">
         <div className="application-list">
