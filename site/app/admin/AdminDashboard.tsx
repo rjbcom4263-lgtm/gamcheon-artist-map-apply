@@ -25,7 +25,6 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
   const [filter, setFilter] = useState("all");
   const [saving, setSaving] = useState("");
   const [view, setView] = useState<View>("applications");
-  const [selectedApplicationId, setSelectedApplicationId] = useState(initial[0]?.id || "");
   const [selectedAccountId, setSelectedAccountId] = useState(initialAccounts[0]?.id || "");
   const [temporaryPassword, setTemporaryPassword] = useState<Record<string, string>>({});
 
@@ -80,11 +79,6 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
   const selectedImages = selectedApplication ? parse<ImageRecord[]>(selectedApplication.image_keys_json, []) : [];
   const profileImage = selectedImages.find((image) => image.type === "profile");
   const previewWorks = selectedPayload.works || [];
-  const selectedListApplication = filtered.find((row) => row.id === selectedApplicationId) || filtered[0];
-  const listPayload = selectedListApplication ? parse<Payload>(selectedListApplication.payload_json, {}) : {};
-  const listImages = selectedListApplication ? parse<ImageRecord[]>(selectedListApplication.image_keys_json, []) : [];
-  const listProfileImage = listImages.find((image) => image.type === "profile");
-  const listWorks = listPayload.works || [];
 
   return <div className="admin-dashboard">
     <aside className="dash-sidebar">
@@ -103,43 +97,22 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
       <section className="dash-metrics">
         <Metric label="전체 신청" value={counts.all}/><Metric label="신규 접수" value={counts.received}/><Metric label="승인 완료" value={counts.approved}/><Metric label="승인 대기 계정" value={counts.pendingAccounts}/>
       </section>
-      {view === "applications" ? <div className="application-manager-grid">
-        <section className="dash-card dash-table-card admin-list-wide">
-          <div className="dash-card-head">
-            <div><h2>신청 목록</h2><span>목록을 누르면 오른쪽에 지도 카드 미리보기와 빠른 확인 정보가 뜹니다.</span></div>
-            <div className="dash-filters"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="작가명, 연락처, 접수번호"/><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">전체</option>{Object.entries(STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>
-          </div>
-          <div className="application-table">
-            <div className="table-row table-head"><span>작가</span><span>분야</span><span>상태</span><span>접수일</span><span>상세</span></div>
-            {filtered.length ? filtered.map((row) => <button type="button" key={row.id} className={`table-row table-row-button ${selectedListApplication?.id === row.id ? "selected" : ""}`} onClick={() => setSelectedApplicationId(row.id)}>
-              <span><strong>{row.artist_name}</strong><small>{row.id}</small></span>
-              <span>{parse<Payload>(row.payload_json, {}).categories?.join(" · ") || "분야 미입력"}</span>
-              <span><em className={`status status-${row.status}`}>{STATUS[row.status as keyof typeof STATUS] || row.status}</em></span>
-              <span>{date(row.created_at)}</span>
-              <span><b className="open-detail">미리보기</b></span>
-            </button>) : <div className="admin-empty">조건에 맞는 신청서가 없습니다.</div>}
-          </div>
-        </section>
-        <aside className="dash-card account-preview-card application-preview-card">
-          {selectedListApplication ? <>
-            <div className="dash-card-head"><div><h2>신청 미리보기</h2><span>{selectedListApplication.id}</span></div><em className={`status status-${selectedListApplication.status}`}>{STATUS[selectedListApplication.status as keyof typeof STATUS] || selectedListApplication.status}</em></div>
-            <div className="account-profile">
-              <Link className="linked-application" href={`/admin/applications/${encodeURIComponent(selectedListApplication.id)}`}>운영자 처리 열기</Link>
-              <div className="map-preview-card">
-                {listProfileImage ? <img src={`/api/admin/images?key=${encodeURIComponent(listProfileImage.key)}`} alt="지도 카드 대표 이미지"/> : <div className="map-preview-empty">대표 이미지 없음</div>}
-                <div><span>{listPayload.categories?.join(" · ") || "분야 미입력"}</span><h3>{selectedListApplication.artist_name}</h3><p>{String(listPayload.values?.tagline || "한 줄 소개가 없습니다.")}</p></div>
-              </div>
-              <dl><div><dt>연락처</dt><dd>{selectedListApplication.phone}</dd></div><div><dt>이메일</dt><dd>{selectedListApplication.email || "-"}</dd></div><div><dt>공방</dt><dd>{String(listPayload.values?.studioName || "-")}</dd></div><div><dt>방문</dt><dd>{String(listPayload.values?.visitType || "-")}</dd></div></dl>
-              <div className="preview-work-list">
-                {listWorks.slice(0, 5).map((work, index) => {
-                  const image = listImages.find((item) => item.type === "work" && item.workIndex === index);
-                  return <div key={work.id || index}>{image ? <img src={`/api/admin/images?key=${encodeURIComponent(image.key)}`} alt={`${work.title || "작품"} 이미지`}/> : <span/>}<strong>{index + 1}. {work.title || "작품명 없음"}</strong></div>;
-                })}
-              </div>
-            </div>
-          </> : <div className="admin-empty">선택된 신청서가 없습니다.</div>}
-        </aside>
-      </div> : <div className="account-manager-grid">
+      {view === "applications" ? <section className="dash-card dash-table-card admin-list-wide">
+        <div className="dash-card-head">
+          <div><h2>신청 목록</h2><span>신청서를 누르면 새 상세 페이지에서 운영자 처리를 진행합니다.</span></div>
+          <div className="dash-filters"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="작가명, 연락처, 접수번호"/><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">전체</option>{Object.entries(STATUS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>
+        </div>
+        <div className="application-table">
+          <div className="table-row table-head"><span>작가</span><span>분야</span><span>상태</span><span>접수일</span><span>상세</span></div>
+          {filtered.length ? filtered.map((row) => <Link key={row.id} className="table-row" href={`/admin/applications/${encodeURIComponent(row.id)}`}>
+            <span><strong>{row.artist_name}</strong><small>{row.id}</small></span>
+            <span>{parse<Payload>(row.payload_json, {}).categories?.join(" · ") || "분야 미입력"}</span>
+            <span><em className={`status status-${row.status}`}>{STATUS[row.status as keyof typeof STATUS] || row.status}</em></span>
+            <span>{date(row.created_at)}</span>
+            <span><b className="open-detail">열기</b></span>
+          </Link>) : <div className="admin-empty">조건에 맞는 신청서가 없습니다.</div>}
+        </div>
+      </section> : <div className="account-manager-grid">
         <section className="dash-card accounts-card">
           <div className="dash-card-head"><div><h2>작가 계정</h2><span>비밀번호는 원문 대신 운영자가 1234로 초기화해서 안내합니다.</span></div><strong>{accounts.length}개 계정</strong></div>
           <div className="account-table">
