@@ -49,7 +49,10 @@ export default function ApplicationDetail({ application }: { application: Applic
   return <div className="admin-dashboard">
     <aside className="dash-sidebar">
       <Link href="/" className="dash-logo"><span>감</span><strong>감천 작가 지도</strong></Link>
-      <nav><div className="nav-group"><p>신청 관리</p><Link className="sidebar-link active" href="/admin"><span>◆</span>신청 목록</Link></div></nav>
+      <nav>
+        <div className="nav-group"><p>신청 관리</p><Link className="sidebar-link active" href="/admin"><span>◆</span>신청 목록</Link></div>
+        <div className="nav-group"><p>계정 관리</p><Link className="sidebar-link" href="/admin"><span>●</span>계정 목록</Link></div>
+      </nav>
       <div className="dash-sidebar-card"><strong>운영자</strong><span>신청서 상세</span><a href="/api/admin/logout">로그아웃</a></div>
     </aside>
     <main className="dash-main application-detail-page">
