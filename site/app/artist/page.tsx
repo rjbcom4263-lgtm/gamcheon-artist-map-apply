@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireArtist } from "../admin/admin-auth";
+import PasswordChangeForm from "./PasswordChangeForm";
 
 export const dynamic = "force-dynamic";
 
@@ -96,12 +97,14 @@ export default async function ArtistPage() {
             <div><dt>홈페이지</dt><dd>{String(values.website || "-")}</dd></div>
           </dl>
         </section>
+        <section className="artist-card"><PasswordChangeForm /></section>
       </div> : <section className="artist-panel">
         <p>NO APPLICATION</p>
         <h1>아직 연결된 신청서가 없습니다.</h1>
         <span>작가 신청서를 작성하면 이 화면에서 접수 상태와 대표 작품 5점을 확인할 수 있습니다.</span>
         <div className="artist-status"><strong>현재 상태</strong><em>신청 필요</em></div>
         <div className="artist-actions"><Link href="/">새 신청서 작성</Link><Link href="/login">다른 계정 로그인</Link></div>
+        <PasswordChangeForm />
       </section>}
     </section>
   </main>;

@@ -5,7 +5,9 @@ import { useMemo, useState } from "react";
 
 export type Application = { id: string; artist_name: string; phone: string; email: string; status: string; payload_json: string; image_keys_json: string; created_at: string };
 export type Account = { id: string; login_id: string; role: string; status: string; display_name: string; phone: string; email: string; created_at: string; last_login_at: string | null };
-type Payload = { categories?: string[] };
+type Work = { id?: string; title?: string; status?: string; description?: string };
+type Payload = { values?: Record<string, string | boolean>; categories?: string[]; works?: Work[]; adminReview?: { note?: string } };
+type ImageRecord = { type: string; workIndex?: number; key: string; name?: string };
 type View = "applications" | "accounts";
 
 const STATUS = { received: "접수", reviewing: "검토 중", approved: "승인", hold: "보류", rejected: "반려", cancelled: "신청자 취소" } as const;
@@ -23,6 +25,8 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
   const [filter, setFilter] = useState("all");
   const [saving, setSaving] = useState("");
   const [view, setView] = useState<View>("applications");
+  const [selectedAccountId, setSelectedAccountId] = useState(initialAccounts[0]?.id || "");
+  const [temporaryPassword, setTemporaryPassword] = useState<Record<string, string>>({});
 
   const filtered = useMemo(() => initial.filter((row) => {
     const matchesStatus = filter === "all" || row.status === filter;
@@ -52,7 +56,29 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
     setSaving("");
     if (!response.ok) return alert("계정을 삭제하지 못했습니다.");
     setAccounts((current) => current.filter((account) => account.id !== id));
+    if (selectedAccountId === id) setSelectedAccountId("");
   }
+  async function resetPassword(id: string) {
+    const target = accounts.find((account) => account.id === id);
+    if (!target || !confirm(`${target.display_name || target.login_id} 비밀번호를 1234로 초기화할까요?`)) return;
+    setSaving(id);
+    const response = await fetch(`/api/admin/accounts/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ resetPassword: true }) });
+    const result = await response.json().catch(() => ({})) as { temporaryPassword?: string; error?: string };
+    setSaving("");
+    if (!response.ok || !result.temporaryPassword) return alert(result.error || "비밀번호를 초기화하지 못했습니다.");
+    setTemporaryPassword((current) => ({ ...current, [id]: result.temporaryPassword || "" }));
+    alert(`${target.display_name || target.login_id} 임시 비밀번호: ${result.temporaryPassword}`);
+  }
+  function linkedApplication(account: Account) {
+    return initial.find((row) => row.phone === account.phone || (!!row.email && row.email === account.email) || row.artist_name === account.display_name);
+  }
+
+  const selectedAccount = accounts.find((account) => account.id === selectedAccountId) || accounts[0];
+  const selectedApplication = selectedAccount ? linkedApplication(selectedAccount) : undefined;
+  const selectedPayload = selectedApplication ? parse<Payload>(selectedApplication.payload_json, {}) : {};
+  const selectedImages = selectedApplication ? parse<ImageRecord[]>(selectedApplication.image_keys_json, []) : [];
+  const profileImage = selectedImages.find((image) => image.type === "profile");
+  const previewWorks = selectedPayload.works || [];
 
   return <div className="admin-dashboard">
     <aside className="dash-sidebar">
@@ -86,17 +112,40 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
             <span><b className="open-detail">열기</b></span>
           </Link>) : <div className="admin-empty">조건에 맞는 신청서가 없습니다.</div>}
         </div>
-      </section> : <section className="dash-card accounts-card">
-        <div className="dash-card-head"><div><h2>작가 계정</h2><span>비밀번호는 원문을 저장하지 않으므로 볼 수 없습니다.</span></div><strong>{accounts.length}개 계정</strong></div>
-        <div className="account-table">
-          <div className="account-row account-head"><span>아이디</span><span>작가명</span><span>연락처</span><span>상태</span><span>가입일</span><span>관리</span></div>
-          {accounts.length ? accounts.map((account) => <div className="account-row" key={account.id}>
-            <span><strong>{account.login_id}</strong><small>{account.email || "이메일 없음"}</small></span><span>{account.display_name || "-"}</span><span>{account.phone || "-"}</span>
-            <span><em className={`account-badge account-${account.status}`}>{ACCOUNT_STATUS[account.status as keyof typeof ACCOUNT_STATUS] || account.status}</em></span><span>{date(account.created_at)}</span>
-            <span className="account-actions"><button disabled={saving === account.id} onClick={() => changeAccountStatus(account.id, "active")}>활성</button><button disabled={saving === account.id} onClick={() => changeAccountStatus(account.id, "suspended")}>정지</button><button className="delete" disabled={saving === account.id} onClick={() => deleteAccount(account.id)}>삭제</button></span>
-          </div>) : <div className="admin-empty">회원가입한 작가 계정이 없습니다.</div>}
-        </div>
-      </section>}
+      </section> : <div className="account-manager-grid">
+        <section className="dash-card accounts-card">
+          <div className="dash-card-head"><div><h2>작가 계정</h2><span>비밀번호는 원문 대신 운영자가 1234로 초기화해서 안내합니다.</span></div><strong>{accounts.length}개 계정</strong></div>
+          <div className="account-table">
+            <div className="account-row account-head"><span>아이디</span><span>작가명</span><span>연락처</span><span>상태</span><span>가입일</span><span>관리</span></div>
+            {accounts.length ? accounts.map((account) => <div className={`account-row account-row-button ${selectedAccount?.id === account.id ? "selected" : ""}`} key={account.id} role="button" tabIndex={0} onClick={() => setSelectedAccountId(account.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setSelectedAccountId(account.id); }}>
+              <span><strong>{account.login_id}</strong><small>{account.email || "이메일 없음"}</small>{temporaryPassword[account.id] && <small className="temporary-password">임시 비밀번호 {temporaryPassword[account.id]}</small>}</span><span>{account.display_name || "-"}</span><span>{account.phone || "-"}</span>
+              <span><em className={`account-badge account-${account.status}`}>{ACCOUNT_STATUS[account.status as keyof typeof ACCOUNT_STATUS] || account.status}</em></span><span>{date(account.created_at)}</span>
+              <span className="account-actions"><button type="button" disabled={saving === account.id} onClick={(event) => { event.stopPropagation(); changeAccountStatus(account.id, "active"); }}>활성</button><button type="button" disabled={saving === account.id} onClick={(event) => { event.stopPropagation(); changeAccountStatus(account.id, "suspended"); }}>정지</button><button type="button" disabled={saving === account.id} onClick={(event) => { event.stopPropagation(); resetPassword(account.id); }}>비번 1234</button><button type="button" className="delete" disabled={saving === account.id} onClick={(event) => { event.stopPropagation(); deleteAccount(account.id); }}>삭제</button></span>
+            </div>) : <div className="admin-empty">회원가입한 작가 계정이 없습니다.</div>}
+          </div>
+        </section>
+        <aside className="dash-card account-preview-card">
+          {selectedAccount ? <>
+            <div className="dash-card-head"><div><h2>작가 프로필</h2><span>{selectedAccount.login_id}</span></div><em className={`account-badge account-${selectedAccount.status}`}>{ACCOUNT_STATUS[selectedAccount.status as keyof typeof ACCOUNT_STATUS] || selectedAccount.status}</em></div>
+            <div className="account-profile">
+              <dl><div><dt>작가명</dt><dd>{selectedAccount.display_name || "-"}</dd></div><div><dt>전화</dt><dd>{selectedAccount.phone || "-"}</dd></div><div><dt>이메일</dt><dd>{selectedAccount.email || "-"}</dd></div><div><dt>최근 로그인</dt><dd>{date(selectedAccount.last_login_at)}</dd></div></dl>
+              {selectedApplication ? <>
+                <Link className="linked-application" href={`/admin/applications/${encodeURIComponent(selectedApplication.id)}`}>신청서 열기 · {selectedApplication.id}</Link>
+                <div className="map-preview-card">
+                  {profileImage ? <img src={`/api/admin/images?key=${encodeURIComponent(profileImage.key)}`} alt="지도 카드 대표 이미지"/> : <div className="map-preview-empty">대표 이미지 없음</div>}
+                  <div><span>{selectedPayload.categories?.join(" · ") || "분야 미입력"}</span><h3>{selectedApplication.artist_name}</h3><p>{String(selectedPayload.values?.tagline || "한 줄 소개가 없습니다.")}</p></div>
+                </div>
+                <div className="preview-work-list">
+                  {previewWorks.slice(0, 5).map((work, index) => {
+                    const image = selectedImages.find((item) => item.type === "work" && item.workIndex === index);
+                    return <div key={work.id || index}>{image ? <img src={`/api/admin/images?key=${encodeURIComponent(image.key)}`} alt={`${work.title || "작품"} 이미지`}/> : <span/>}<strong>{index + 1}. {work.title || "작품명 없음"}</strong></div>;
+                  })}
+                </div>
+              </> : <div className="admin-empty compact">이 계정과 연결된 신청서가 아직 없습니다.</div>}
+            </div>
+          </> : <div className="admin-empty">선택된 계정이 없습니다.</div>}
+        </aside>
+      </div>}
     </main>
   </div>;
 }
