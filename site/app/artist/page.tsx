@@ -44,7 +44,7 @@ export default async function ArtistPage() {
   const profile = images.find((image) => image.type === "profile");
 
   return <main className="artist-shell">
-    <header className="artist-top"><div><strong>감천 작가 지도</strong><span>작가 페이지</span></div><nav><Link href="/">신청 화면</Link><a href="/api/auth/logout">로그아웃</a></nav></header>
+    <header className="artist-top"><div><strong>감천 작가 지도</strong><span>작가 페이지</span></div><nav><Link href="/apply">신청 화면</Link><a href="/api/auth/logout">로그아웃</a></nav></header>
     <section className="artist-home">
       <div className="artist-hero-panel">
         <div>
@@ -103,7 +103,7 @@ export default async function ArtistPage() {
         <h1>아직 연결된 신청서가 없습니다.</h1>
         <span>작가 신청서를 작성하면 이 화면에서 접수 상태와 대표 작품 5점을 확인할 수 있습니다.</span>
         <div className="artist-status"><strong>현재 상태</strong><em>신청 필요</em></div>
-        <div className="artist-actions"><Link href="/">새 신청서 작성</Link><Link href="/login">다른 계정 로그인</Link></div>
+        <div className="artist-actions"><Link href="/apply">새 신청서 작성</Link><Link href="/login">다른 계정 로그인</Link></div>
         <PasswordChangeForm />
       </section>}
     </section>

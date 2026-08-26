@@ -58,7 +58,7 @@ export default function ApplicationDetail({ application }: { application: Applic
     <main className="dash-main application-detail-page">
       <header className="dash-top">
         <div><p>{row.id}</p><h1>{row.artist_name}</h1></div>
-        <div className="dash-actions"><Link href="/admin">목록으로</Link><Link href="/">신청 화면</Link></div>
+        <div className="dash-actions"><Link href="/admin">목록으로</Link><Link href="/apply">신청 화면</Link></div>
       </header>
       <section className="detail-page-grid">
         <div className="dash-card detail-main-card">

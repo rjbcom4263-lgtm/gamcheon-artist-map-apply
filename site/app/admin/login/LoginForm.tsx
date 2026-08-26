@@ -20,6 +20,6 @@ export default function LoginForm() {
     <label>관리자 아이디<input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required autoFocus/></label>
     <label>비밀번호<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required/></label>
     {error && <div className="login-error" role="alert">{error}</div>}
-    <button disabled={loading}>{loading ? "확인 중…" : "로그인"}</button><a href="/">신청 페이지로 돌아가기</a>
+    <button disabled={loading}>{loading ? "확인 중…" : "로그인"}</button><a href="/apply">신청 페이지로 돌아가기</a>
   </form>;
 }

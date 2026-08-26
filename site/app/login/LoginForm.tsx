@@ -28,6 +28,6 @@ export default function LoginForm() {
     <label>비밀번호<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required/></label>
     {error && <div className="login-error" role="alert">{error}</div>}
     <button disabled={loading}>{loading ? "확인 중..." : "로그인"}</button>
-    <div className="login-links"><a href="/signup">작가 회원가입</a><a href="/">신청 페이지</a></div>
+    <div className="login-links"><a href="/signup">작가 회원가입</a><a href="/apply">신청 페이지</a></div>
   </form>;
 }

@@ -31,6 +31,6 @@ export default function SignupForm() {
     <label>이메일<input type="email" value={form.email} onChange={(e) => update("email", e.target.value)}/></label>
     {error && <div className="login-error" role="alert">{error}</div>}
     <button disabled={loading}>{loading ? "가입 중..." : "회원가입"}</button>
-    <div className="login-links"><a href="/login">이미 계정이 있어요</a><a href="/">신청 페이지</a></div>
+    <div className="login-links"><a href="/login">이미 계정이 있어요</a><a href="/apply">신청 페이지</a></div>
   </form>;
 }

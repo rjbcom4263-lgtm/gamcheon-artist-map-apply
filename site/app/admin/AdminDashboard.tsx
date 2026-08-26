@@ -47,7 +47,7 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
     <main className="dash-main">
       <header className="dash-top">
         <div><p>GAMCHEON ARTIST MAP</p><h1>{view === "applications" ? "작가 신청 관리" : "회원가입 계정 관리"}</h1></div>
-        <div className="dash-actions"><a href="/api/admin/applications/export">CSV 다운로드</a><Link href="/">신청 화면</Link></div>
+        <div className="dash-actions"><a href="/api/admin/applications/export">CSV 다운로드</a><Link href="/apply">신청 화면</Link></div>
       </header>
       <section className="dash-metrics">
         <Metric label="전체 신청" value={counts.all}/><Metric label="신규 접수" value={counts.received}/><Metric label="승인 완료" value={counts.approved}/><Metric label="승인 대기 계정" value={counts.pendingAccounts}/>

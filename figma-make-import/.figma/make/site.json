@@ -1,0 +1,10 @@
+{
+  "description": "Enables artists to register profiles, submit artworks and workshops for Gamcheon Culture Village, with admin review for cultural map inclusion.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

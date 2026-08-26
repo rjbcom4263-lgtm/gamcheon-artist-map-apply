@@ -68,7 +68,7 @@ export default function AccountDetail({ account, application }: { account: Accou
     <main className="dash-main account-detail-page">
       <header className="dash-top">
         <div><p>{row.login_id}</p><h1>{row.display_name || row.login_id}</h1></div>
-        <div className="dash-actions"><Link href="/admin">목록으로</Link><Link href="/">신청 화면</Link></div>
+        <div className="dash-actions"><Link href="/admin">목록으로</Link><Link href="/apply">신청 화면</Link></div>
       </header>
       <section className="detail-page-grid">
         <div className="dash-card detail-main-card">
