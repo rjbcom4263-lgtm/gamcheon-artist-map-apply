@@ -4,6 +4,7 @@ import type { Screen, UserRole } from "../App";
 interface Props {
   onNavigate: (s: Screen) => void;
   role: UserRole;
+  onLogout: () => void;
 }
 
 type AppStatus = "pending" | "review" | "approved" | "rejected";
@@ -69,7 +70,7 @@ const infoRows = [
   { label: "인스타그램", value: "@gamcheon_art" },
 ];
 
-export default function ArtistMyInfo({ onNavigate, role: _role }: Props) {
+export default function ArtistMyInfo({ onNavigate, role: _role, onLogout }: Props) {
   const [status] = useState<AppStatus>("review");
   const [showPwModal, setShowPwModal] = useState(false);
   const [showInfoDetail, setShowInfoDetail] = useState(false);
@@ -78,6 +79,12 @@ export default function ArtistMyInfo({ onNavigate, role: _role }: Props) {
   const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const cfg = statusConfig[status];
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "GET" }).catch(() => null);
+    onLogout();
+    onNavigate("home");
+  }
 
   return (
     <div className="min-h-screen pb-28" style={{ background: "var(--background)" }}>
@@ -223,7 +230,7 @@ export default function ArtistMyInfo({ onNavigate, role: _role }: Props) {
             style={{ background: "var(--card)", color: "var(--foreground)", border: "1px solid var(--border)" }}>
             비밀번호 변경
           </button>
-          <button onClick={() => onNavigate("home")}
+          <button onClick={logout}
             className="w-full py-2.5 text-sm"
             style={{ color: "var(--muted-foreground)" }}>
             로그아웃
