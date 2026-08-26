@@ -43,6 +43,7 @@ interface Artwork {
   desc: string;
   sale: boolean;
   preview: string | null;
+  file?: File;
 }
 
 const EMPTY_ARTWORK: Artwork = { title: "", desc: "", sale: false, preview: null };
@@ -75,6 +76,10 @@ function Input({ value, onChange, placeholder, type = "text" }: {
 export default function ArtistApplication({ onNavigate }: Props) {
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedId, setSubmittedId] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [imageProcessing, setImageProcessing] = useState(0);
 
   // Step 0
   const [name, setName] = useState("");
@@ -100,12 +105,123 @@ export default function ArtistApplication({ onNavigate }: Props) {
   function updateArtwork(i: number, k: keyof Artwork, v: string | boolean | null) {
     setArtworks(prev => prev.map((art, idx) => idx === i ? { ...art, [k]: v } : art));
   }
-  function handleFile(i: number, e: ChangeEvent<HTMLInputElement>) {
+  async function compressImage(file: File) {
+    if (file.size <= 900 * 1024) return file;
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    let blob: Blob | null = null;
+    for (const quality of [0.82, 0.7, 0.58]) {
+      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+      if (blob && blob.size <= 1100 * 1024) break;
+    }
+    if (!blob) throw new Error("이미지를 변환하지 못했습니다.");
+    const name = file.name.replace(/\.[^.]+$/, "") || "image";
+    return new File([blob], `${name}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
+  }
+
+  async function handleFile(i: number, e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (f) updateArtwork(i, "preview", URL.createObjectURL(f));
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      setError("이미지 파일만 선택해 주세요.");
+      return;
+    }
+    setImageProcessing((count) => count + 1);
+    setError("");
+    try {
+      const file = await compressImage(f);
+      setArtworks(prev => prev.map((art, idx) => idx === i ? { ...art, file, preview: URL.createObjectURL(file) } : art));
+    } catch {
+      setError("이 사진 형식을 읽지 못했습니다. JPG 또는 PNG로 다시 선택해 주세요.");
+    } finally {
+      setImageProcessing((count) => Math.max(0, count - 1));
+    }
   }
   function removeArtworkImg(i: number) {
-    updateArtwork(i, "preview", null);
+    setArtworks(prev => prev.map((art, idx) => idx === i ? { ...art, file: undefined, preview: null } : art));
+  }
+
+  function validateCurrentStep() {
+    if (imageProcessing > 0) return "사진을 처리하고 있습니다. 잠시만 기다려 주세요.";
+    if (step === 0 && (!name.trim() || !field || !phone.trim() || !email.trim())) return "작가명, 예술 분야, 연락처, 이메일을 입력해 주세요.";
+    if (step === 1 && (!oneliner.trim() || !bio.trim())) return "한 줄 소개와 작가 소개글을 입력해 주세요.";
+    if (step === 2 && (!workshopName.trim() || !address.trim() || !visitMethod)) return "공방 이름, 주소, 방문 방식을 입력해 주세요.";
+    if (step === 3 && artworks.some((art) => !art.title.trim() || !art.file)) return "대표 작품 5점의 작품명과 이미지를 모두 등록해 주세요.";
+    return "";
+  }
+
+  async function submitApplication() {
+    const message = validateCurrentStep();
+    if (message) {
+      setError(message);
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const payload = {
+        values: {
+          artistName: name,
+          studioName: alias || workshopName,
+          tagline: oneliner,
+          bio,
+          address,
+          locationPrivacy: "exact",
+          visitType: visitMethod,
+          hours: "",
+          experience: "없음",
+          experienceDesc: "",
+          instagram,
+          website: "",
+          shopUrl: "",
+          phone,
+          email,
+          stampInterest: "자세한 설명을 듣고 결정하고 싶음",
+          nfcInterest: "자세한 설명을 듣고 결정하고 싶음",
+          feedback: "",
+          consentInfo: true,
+          consentImage: true,
+          consentPrivacy: true,
+        },
+        categories: [field],
+        works: artworks.map((art, index) => ({
+          id: `figma-work-${index + 1}`,
+          title: art.title,
+          status: art.sale ? "판매 가능" : "문의 필요",
+          description: art.desc,
+        })),
+        expectedImages: { profile: false, works: artworks.map(() => true) },
+      };
+      const data = new FormData();
+      data.set("payload", JSON.stringify(payload));
+      artworks.forEach((art, index) => {
+        if (art.file) data.set(`workImage${index}`, art.file);
+      });
+      const response = await fetch("/api/applications", { method: "POST", body: data });
+      const result = await response.json().catch(() => ({})) as { id?: string; error?: string };
+      if (!response.ok || !result.id) throw new Error(result.error || "신청서 저장에 실패했습니다.");
+      setSubmittedId(result.id);
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "신청서 저장에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function next() {
+    const message = validateCurrentStep();
+    if (message) {
+      setError(message);
+      return;
+    }
+    setError("");
+    setStep(s => s + 1);
   }
 
   if (submitted) {
@@ -126,7 +242,7 @@ export default function ArtistApplication({ onNavigate }: Props) {
           등록된 이메일로 결과를 안내드리겠습니다.
         </p>
         <p className="text-xs text-center mb-10" style={{ color: "var(--teal)" }}>
-          검토 기간: 영업일 기준 3~7일
+          접수번호 {submittedId || "-"} · 검토 기간: 영업일 기준 3~7일
         </p>
         <button onClick={() => onNavigate("myinfo")}
           className="w-full py-3.5 rounded-xl font-semibold text-sm mb-2.5"
@@ -315,7 +431,7 @@ export default function ArtistApplication({ onNavigate }: Props) {
                       {i + 1}
                     </div>
                     <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
-                      {i + 1}번째 작품 {i < 3 ? <span style={{ color: "#B84A2E" }}>*</span> : <span style={{ color: "var(--muted-foreground)" }}>(선택)</span>}
+                      {i + 1}번째 작품 <span style={{ color: "#B84A2E" }}>*</span>
                     </span>
                   </div>
                   {art.preview && (
@@ -475,6 +591,7 @@ export default function ArtistApplication({ onNavigate }: Props) {
         )}
 
         {/* Navigation */}
+        {error && <p className="text-xs text-center mt-5" style={{ color: "#B84A2E" }}>{error}</p>}
         <div className="flex gap-2.5 mt-6 mb-4">
           {step > 0 && (
             <button onClick={() => setStep(s => s - 1)}
@@ -484,10 +601,11 @@ export default function ArtistApplication({ onNavigate }: Props) {
             </button>
           )}
           <button
-            onClick={() => step < STEPS.length - 1 ? setStep(s => s + 1) : setSubmitted(true)}
+            onClick={() => step < STEPS.length - 1 ? next() : submitApplication()}
+            disabled={submitting || imageProcessing > 0}
             className="flex-1 py-3.5 rounded-xl font-semibold text-sm active:scale-98 transition-all"
-            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
-            {step < STEPS.length - 1 ? "다음 단계로" : "신청서 제출하기"}
+            style={{ background: submitting || imageProcessing > 0 ? "var(--muted)" : "var(--primary)", color: submitting || imageProcessing > 0 ? "var(--muted-foreground)" : "var(--primary-foreground)" }}>
+            {imageProcessing > 0 ? "사진 처리 중..." : submitting ? "제출 중..." : step < STEPS.length - 1 ? "다음 단계로" : "신청서 제출하기"}
           </button>
         </div>
       </div>

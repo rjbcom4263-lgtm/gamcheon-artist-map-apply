@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import type { Screen, UserRole } from "../App";
 
 interface Props {
@@ -8,30 +9,34 @@ interface Props {
 }
 
 export default function Login({ onNavigate, onLogin }: Props) {
+  const router = useRouter();
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!id.trim() || !pw.trim()) {
       setError("아이디와 비밀번호를 모두 입력해 주세요.");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      // 관리자 계정: admin / admin
-      if (id === "admin" && pw === "admin") {
-        onLogin("admin");
-      } else if (id.length > 0 && pw.length > 0) {
-        // 작가 계정
-        onLogin("artist");
-      } else {
-        setError("아이디 또는 비밀번호가 올바르지 않습니다.");
-      }
-    }, 600);
+    setError("");
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ loginId: id, password: pw }),
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string; role?: UserRole; redirectTo?: string };
+    setLoading(false);
+    if (!response.ok) {
+      setError(result.error || "아이디 또는 비밀번호가 올바르지 않습니다.");
+      return;
+    }
+    onLogin(result.role || "artist");
+    router.replace(result.redirectTo || "/artist");
+    router.refresh();
   }
 
   return (
@@ -165,7 +170,7 @@ export default function Login({ onNavigate, onLogin }: Props) {
         <div className="mt-auto pt-10 pb-6">
           <p className="text-center text-xs leading-relaxed"
             style={{ color: "var(--muted-foreground)", opacity: 0.5 }}>
-            테스트 · 운영자 계정: admin / admin
+            운영자 계정으로 로그인하면 관리자 화면으로 이동합니다.
           </p>
         </div>
       </div>

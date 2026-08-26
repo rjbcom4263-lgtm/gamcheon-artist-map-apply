@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
 
 import type { Screen } from "../App";
 
@@ -8,15 +9,53 @@ interface Props {
 }
 
 export default function SignUp({ onNavigate }: Props) {
+  const router = useRouter();
   const [form, setForm] = useState({
     userId: "", password: "", passwordCheck: "",
     artistName: "", phone: "", email: "",
   });
   const [agreed, setAgreed] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   function set(k: keyof typeof form) {
-    return (e: ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
+    return (e: ChangeEvent<HTMLInputElement>) => {
+      setError("");
+      setForm(f => ({ ...f, [k]: e.target.value }));
+    };
+  }
+
+  async function submit() {
+    if (!agreed) return;
+    if (form.password !== form.passwordCheck) {
+      setError("비밀번호 확인이 일치하지 않습니다.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    const response = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        loginId: form.userId,
+        password: form.password,
+        displayName: form.artistName,
+        phone: form.phone,
+        email: form.email,
+      }),
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string; redirectTo?: string };
+    setLoading(false);
+    if (!response.ok) {
+      setError(result.error || "회원가입을 완료하지 못했습니다.");
+      return;
+    }
+    setDone(true);
+    window.setTimeout(() => {
+      router.replace(result.redirectTo || "/artist");
+      router.refresh();
+    }, 700);
   }
 
   if (done) {
@@ -99,13 +138,15 @@ export default function SignUp({ onNavigate }: Props) {
             </label>
           </div>
 
-          <button onClick={() => agreed && setDone(true)} disabled={!agreed}
+          {error && <p className="text-xs text-center" style={{ color: "#B84A2E" }}>{error}</p>}
+
+          <button onClick={submit} disabled={!agreed || loading}
             className="w-full py-3.5 rounded-xl font-semibold text-sm mt-1 transition-all active:scale-98"
             style={{
-              background: agreed ? "var(--primary)" : "var(--muted)",
-              color: agreed ? "var(--primary-foreground)" : "var(--muted-foreground)",
+              background: agreed && !loading ? "var(--primary)" : "var(--muted)",
+              color: agreed && !loading ? "var(--primary-foreground)" : "var(--muted-foreground)",
             }}>
-            계정 만들기
+            {loading ? "계정 만드는 중..." : "계정 만들기"}
           </button>
 
           <p className="text-center text-sm pb-4">
