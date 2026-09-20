@@ -1,1 +1,11 @@
 figma-make-import/src/imports/image.png
+site/qa/
+
+**/node_modules/
+**/dist/
+**/.wrangler/
+**/.firebase/
+**/.env
+**/.env.*
+!**/.env.example
+**/*.tsbuildinfo
