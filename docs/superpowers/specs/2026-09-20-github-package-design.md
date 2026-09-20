@@ -2,7 +2,7 @@
 
 ## 목적
 
-사용자 소유 GitHub 저장소 `rjbcom4263-lgtm/gamcheon-artist-map-apply` 하나에 현재 작가 홈페이지 전체와 카카오 타일 지도 도구 전체를 함께 보관한다. 이번 작업은 GitHub 소스 업로드만 수행하며 Cloudflare Workers와 Firebase Hosting의 실제 배포 구성은 변경하지 않는다.
+사용자 소유 공개 GitHub 저장소 `rjbcom4263-lgtm/gamcheon-artist-map-apply` 하나에 현재 작가 홈페이지 전체와 카카오 타일 지도 도구 전체를 함께 보관한다. 이번 작업은 GitHub 소스 업로드만 수행하며 Cloudflare Workers와 Firebase Hosting의 실제 배포 구성은 변경하지 않는다.
 
 ## 저장소 구조
 
@@ -32,6 +32,13 @@ gamcheon-artist-map-apply/
 - GitHub Pages 또는 GitHub Actions 신규 배포
 - Cloudflare/Firebase 실서비스 재배포
 
+## 공개 범위와 권한
+
+- 저장소 가시성은 `Public`으로 유지한다.
+- 누구나 코드를 열람하고 복제할 수 있다.
+- 원본 저장소에 직접 수정하거나 배포하는 권한은 저장소 소유자와 별도로 승인된 협업자에게만 있다.
+- 공개 저장소에 포함되는 환경변수 예시는 모두 빈 값이어야 한다.
+
 ## 안전 기준
 
 1. 카카오 지도 도구 내부의 기존 `.git` 폴더를 포함하지 않는다.
@@ -43,6 +50,7 @@ gamcheon-artist-map-apply/
 ## 완료 조건
 
 - GitHub 저장소에서 `site/`와 `tools/kakao-tile-map/`을 모두 확인할 수 있다.
+- GitHub API에서 저장소 가시성이 `public`으로 확인된다.
 - 비밀 환경변수 파일과 의존성·빌드 폴더가 추적되지 않는다.
 - 작가 홈페이지와 지도 도구의 테스트 및 빌드가 통과한다.
 - `main` 브랜치가 사용자 소유 원격 저장소에 성공적으로 푸시된다.
