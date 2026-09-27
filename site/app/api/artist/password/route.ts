@@ -16,7 +16,7 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({})) as { currentPassword?: string; newPassword?: string };
   const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
   const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
-  if (currentPassword.length < 4 || newPassword.length < 4) return Response.json({ error: "비밀번호는 4자 이상 입력해주세요." }, { status: 400 });
+  if (!currentPassword || !newPassword) return Response.json({ error: "비밀번호를 입력해주세요." }, { status: 400 });
 
   const account = await env.DB.prepare("SELECT password_hash FROM accounts WHERE id = ? AND role = 'artist'")
     .bind(artist.accountId).first<{ password_hash: string }>();

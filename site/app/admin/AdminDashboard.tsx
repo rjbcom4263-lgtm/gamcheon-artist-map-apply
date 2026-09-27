@@ -17,10 +17,10 @@ function date(value: string | null) {
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value + (value.endsWith("Z") ? "" : "Z")));
 }
 
-export default function AdminDashboard({ initial, initialAccounts, adminName }: { initial: Application[]; initialAccounts: Account[]; adminName: string }) {
+export default function AdminDashboard({ initial, initialAccounts, adminName, initialView = "applications" }: { initial: Application[]; initialAccounts: Account[]; adminName: string; initialView?: View }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
-  const [view, setView] = useState<View>("applications");
+  const [view, setView] = useState<View>(initialView);
 
   const filtered = useMemo(() => initial.filter((row) => {
     const matchesStatus = filter === "all" || row.status === filter;
@@ -41,13 +41,14 @@ export default function AdminDashboard({ initial, initialAccounts, adminName }: 
       <nav>
         <div className="nav-group"><p>신청 관리</p><button className={view === "applications" ? "active" : ""} onClick={() => setView("applications")}><span>◆</span>신청 목록</button></div>
         <button className={view === "accounts" ? "active" : ""} onClick={() => setView("accounts")}><span>●</span>계정 관리</button>
+        <div className="nav-group"><p>지도 관리</p><Link className="sidebar-link" href="/admin/map"><span>◇</span>지도 관리 홈</Link><Link className="sidebar-link" href="/admin/artists"><span>◆</span>공개 작가 관리</Link></div>
       </nav>
       <div className="dash-sidebar-card"><strong>{adminName}</strong><span>운영자 계정</span><a href="/api/admin/logout">로그아웃</a></div>
     </aside>
     <main className="dash-main">
       <header className="dash-top">
         <div><p>GAMCHEON ARTIST MAP</p><h1>{view === "applications" ? "작가 신청 관리" : "회원가입 계정 관리"}</h1></div>
-        <div className="dash-actions"><a href="/api/admin/applications/export">CSV 다운로드</a><Link href="/apply">신청 화면</Link></div>
+        <div className="dash-actions"><Link href="/admin/map">지도 관리</Link><Link href="/api/admin/applications/export">CSV 다운로드</Link><Link href="/apply">신청 화면</Link></div>
       </header>
       <section className="dash-metrics">
         <Metric label="전체 신청" value={counts.all}/><Metric label="신규 접수" value={counts.received}/><Metric label="승인 완료" value={counts.approved}/><Metric label="승인 대기 계정" value={counts.pendingAccounts}/>

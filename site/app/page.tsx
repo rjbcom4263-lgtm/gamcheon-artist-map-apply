@@ -1,7 +1,7 @@
-"use client";
+import LandingSamplePage from "./landing-sample/page";
 
-import MakeApp from "./figma-preview/_make/App";
+export const dynamic = "force-dynamic";
 
 export default function HomePage() {
-  return <div className="figma-preview-page"><MakeApp /></div>;
+  return <LandingSamplePage />;
 }

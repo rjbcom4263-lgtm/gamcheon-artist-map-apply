@@ -13,7 +13,7 @@ export default function LoginForm() {
     const response = await fetch("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username, password }) });
     setLoading(false);
     if (!response.ok) { setError("아이디 또는 비밀번호를 다시 확인해주세요."); return; }
-    router.replace("/admin"); router.refresh();
+    router.replace("/"); router.refresh();
   }
   return <form onSubmit={submit} className="admin-login-card">
     <div className="login-mark">감천</div><p>GAMCHEON ARTIST MAP</p><h1>관리자 로그인</h1><span>작가 신청 내역을 관리하려면 로그인해주세요.</span>

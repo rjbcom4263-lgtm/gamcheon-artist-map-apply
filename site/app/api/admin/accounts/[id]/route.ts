@@ -15,7 +15,13 @@ async function sha256Hex(value: string) {
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   if (!await requireAdmin()) return Response.json({ error: "권한이 없습니다." }, { status: 403 });
   const { id } = await context.params;
-  const body = await request.json().catch(() => ({})) as { status?: string; resetPassword?: boolean };
+  const body = await request.json().catch(() => ({})) as { status?: string; resetPassword?: boolean; promoteAdmin?: boolean };
+  if (body.promoteAdmin) {
+    const result = await env.DB.prepare("UPDATE accounts SET role = 'admin', status = 'active' WHERE id = ? AND role = 'artist' AND status != 'deleted'")
+      .bind(id).run();
+    if (!result.meta.changes) return Response.json({ error: "승격할 계정을 찾지 못했습니다. 이미 관리자이거나 삭제된 계정일 수 있습니다." }, { status: 404 });
+    return Response.json({ ok: true, role: "admin", status: "active" });
+  }
   if (body.resetPassword) {
     const temporaryPassword = "1234";
     const result = await env.DB.prepare("UPDATE accounts SET password_hash = ? WHERE id = ? AND role = 'artist'")

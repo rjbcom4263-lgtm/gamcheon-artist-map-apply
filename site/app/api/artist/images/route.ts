@@ -1,9 +1,9 @@
 import { env } from "cloudflare:workers";
 import { requireArtist } from "../../../admin/admin-auth";
+import { ensureApplicationsTable } from "../../../applications-db";
 
 export const runtime = "edge";
 
-type Account = { display_name: string; phone: string; email: string };
 type ApplicationImageRow = { image_keys_json: string };
 type ImageRecord = { key?: string };
 
@@ -13,14 +13,11 @@ export async function GET(request: Request) {
   const key = new URL(request.url).searchParams.get("key") || "";
   if (!key.startsWith("applications/") || key.includes("..")) return new Response("Bad request", { status: 400 });
 
-  const account = await env.DB.prepare("SELECT display_name, phone, email FROM accounts WHERE id = ?")
-    .bind(artist.accountId).first<Account>();
-  if (!account) return new Response("Forbidden", { status: 403 });
-
+  await ensureApplicationsTable();
   const linked = await env.DB.prepare(`SELECT image_keys_json FROM artist_applications
-    WHERE phone = ? OR (email != '' AND email = ?) OR artist_name = ?
+    WHERE account_id = ?
     ORDER BY created_at DESC
-    LIMIT 20`).bind(account.phone || "", account.email || "", account.display_name || artist.displayName).all<ApplicationImageRow>();
+    LIMIT 20`).bind(artist.accountId).all<ApplicationImageRow>();
   const allowed = (linked.results || []).some((row) => {
     try {
       const images = JSON.parse(row.image_keys_json) as ImageRecord[];

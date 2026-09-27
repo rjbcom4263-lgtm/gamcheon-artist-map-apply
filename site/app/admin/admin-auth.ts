@@ -40,7 +40,7 @@ function safeEqual(a: string, b: string) {
 export async function verifyAdminCredentials(username: string, password: string) {
   return safeEqual(username, process.env.ADMIN_USERNAME || "") && safeEqual(await sha256Hex(password), process.env.ADMIN_PASSWORD_HASH || "");
 }
-async function ensureAccountTables() {
+export async function ensureAccountTables() {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS accounts (
     id TEXT PRIMARY KEY NOT NULL,
     login_id TEXT NOT NULL UNIQUE,
@@ -66,7 +66,7 @@ export async function createArtistAccount(input: { loginId?: string; password?: 
   const displayName = cleanText(input.displayName, 100);
   const phone = cleanText(input.phone, 30);
   const email = cleanText(input.email, 150);
-  if (!loginId || password.length < 4 || !displayName || !phone) return { error: "필수 가입 정보를 확인해주세요.", status: 400 };
+  if (!loginId || !password || !displayName || !phone) return { error: "필수 정보를 모두 입력해주세요.", status: 400 };
   const id = `ACC-${crypto.randomUUID()}`;
   try {
     await env.DB.prepare("INSERT INTO accounts (id, login_id, password_hash, role, status, display_name, phone, email) VALUES (?, ?, ?, 'artist', 'pending', ?, ?, ?)")

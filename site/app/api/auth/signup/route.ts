@@ -8,6 +8,6 @@ export async function POST(request: Request) {
   if ("error" in result) return Response.json({ error: result.error }, { status: result.status });
   const session = await createSession({ accountId: result.account.id, loginId: result.account.loginId, role: "artist", displayName: result.account.displayName });
   return new Response(JSON.stringify({ ok: true, role: "artist", redirectTo: "/artist" }), {
-    headers: { "content-type": "application/json", "set-cookie": `${adminCookie.name}=${session}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${adminCookie.maxAge}` },
+    headers: { "content-type": "application/json", "set-cookie": `${adminCookie.name}=${session}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${adminCookie.maxAge}` },
   });
 }

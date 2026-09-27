@@ -280,7 +280,7 @@ export default function ArtistMyInfo({ onNavigate, role: _role, onLogout }: Prop
             <h3 className="font-display font-bold text-lg" style={{ color: "var(--foreground)" }}>비밀번호 변경</h3>
             {[
               { label: "현재 비밀번호", value: oldPw, set: setOldPw, ph: "현재 비밀번호 입력" },
-              { label: "새 비밀번호", value: newPw, set: setNewPw, ph: "새 비밀번호 (8자 이상)" },
+              { label: "새 비밀번호", value: newPw, set: setNewPw, ph: "새 비밀번호" },
             ].map(f => (
               <div key={f.label}>
                 <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--foreground)" }}>{f.label}</label>

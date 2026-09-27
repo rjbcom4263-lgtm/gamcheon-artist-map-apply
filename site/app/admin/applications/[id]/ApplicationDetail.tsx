@@ -29,11 +29,17 @@ export default function ApplicationDetail({ application }: { application: Applic
   async function changeStatus(status: string) {
     if ((status === "rejected" || status === "cancelled") && !reviewNote.trim()) return alert("처리 사유를 입력해주세요.");
     setSaving(true);
-    const response = await fetch(`/api/admin/applications/${encodeURIComponent(row.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status, reviewNote }) });
-    setSaving(false);
-    if (!response.ok) return alert("상태를 저장하지 못했습니다.");
-    const result = await response.json();
-    setRow((current) => ({ ...current, status, payload_json: result.payload_json }));
+    try {
+      const response = await fetch(`/api/admin/applications/${encodeURIComponent(row.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status, reviewNote }) });
+      if (!response.ok) throw new Error("상태를 저장하지 못했습니다.");
+      const result = await response.json();
+      setRow((current) => ({ ...current, status, payload_json: result.payload_json }));
+      if (status === "approved") router.push(`/admin/artists?artist=${encodeURIComponent(row.id)}`);
+    } catch {
+      alert("상태를 저장하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function deleteApplication() {
@@ -58,7 +64,7 @@ export default function ApplicationDetail({ application }: { application: Applic
     <main className="dash-main application-detail-page">
       <header className="dash-top">
         <div><p>{row.id}</p><h1>{row.artist_name}</h1></div>
-        <div className="dash-actions"><Link href="/admin">목록으로</Link><Link href="/apply">신청 화면</Link></div>
+        <div className="dash-actions">{row.status === "approved" && <Link href={`/admin/artists?artist=${encodeURIComponent(row.id)}`}>지도에 배치하기</Link>}<Link href="/admin">목록으로</Link><Link href="/apply">신청 화면</Link></div>
       </header>
       <section className="detail-page-grid">
         <div className="dash-card detail-main-card">

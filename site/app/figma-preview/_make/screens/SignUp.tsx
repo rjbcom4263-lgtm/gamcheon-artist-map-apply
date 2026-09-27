@@ -83,7 +83,7 @@ export default function SignUp({ onNavigate }: Props) {
 
   const fields: { key: keyof typeof form; label: string; type?: string; placeholder: string; required: boolean }[] = [
     { key: "userId", label: "아이디", placeholder: "영문, 숫자 조합 4-20자", required: true },
-    { key: "password", label: "비밀번호", type: "password", placeholder: "8자 이상, 특수문자 포함", required: true },
+    { key: "password", label: "비밀번호", type: "password", placeholder: "비밀번호 입력", required: true },
     { key: "passwordCheck", label: "비밀번호 확인", type: "password", placeholder: "비밀번호를 다시 입력하세요", required: true },
     { key: "artistName", label: "작가명", placeholder: "활동명 또는 본명", required: true },
     { key: "phone", label: "연락처", placeholder: "010-0000-0000", required: true },

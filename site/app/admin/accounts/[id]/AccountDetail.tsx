@@ -46,6 +46,17 @@ export default function AccountDetail({ account, application }: { account: Accou
     setTemporaryPassword(result.temporaryPassword);
   }
 
+  async function promoteAdmin() {
+    if (!confirm(`${row.display_name || row.login_id} 계정을 관리자 권한으로 승격할까요? 로그인과 전체 관리자 기능을 사용할 수 있게 됩니다.`)) return;
+    setSaving(true);
+    const response = await fetch(`/api/admin/accounts/${encodeURIComponent(row.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ promoteAdmin: true }) });
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    setSaving(false);
+    if (!response.ok) return alert(result.error || "관리자 승격에 실패했습니다.");
+    router.replace("/admin");
+    router.refresh();
+  }
+
   async function deleteAccount() {
     if (!confirm(`${row.display_name || row.login_id} 계정을 삭제할까요?`)) return;
     setSaving(true);
@@ -68,7 +79,7 @@ export default function AccountDetail({ account, application }: { account: Accou
     <main className="dash-main account-detail-page">
       <header className="dash-top">
         <div><p>{row.login_id}</p><h1>{row.display_name || row.login_id}</h1></div>
-        <div className="dash-actions"><Link href="/admin">목록으로</Link><Link href="/apply">신청 화면</Link></div>
+        <div className="dash-actions"><Link href="/admin">목록으로</Link><Link href={`/artist?account=${encodeURIComponent(row.id)}`} target="_blank">작가 페이지 보기</Link><Link href="/apply">신청 화면</Link></div>
       </header>
       <section className="detail-page-grid">
         <div className="dash-card detail-main-card">
@@ -94,6 +105,7 @@ export default function AccountDetail({ account, application }: { account: Accou
         <aside className="dash-card process-card">
           <div className="detail-title"><div><span>계정 상태</span><h2>{ACCOUNT_STATUS[row.status as keyof typeof ACCOUNT_STATUS] || row.status}</h2></div><select value={row.status} disabled={saving} onChange={(event) => changeStatus(event.target.value)}><option value="pending">승인 대기</option><option value="active">활성</option><option value="suspended">정지</option></select></div>
           <section className="review-panel"><div><strong>계정 처리</strong><span>로그인 도움과 계정 상태를 관리합니다.</span></div><div className="review-actions"><button disabled={saving} onClick={() => changeStatus("active")}>활성</button><button disabled={saving} onClick={() => changeStatus("suspended")}>정지</button><button disabled={saving} onClick={resetPassword}>비번 1234</button><button className="delete" disabled={saving} onClick={deleteAccount}>삭제</button></div>{temporaryPassword && <small>임시 비밀번호: {temporaryPassword}</small>}</section>
+          <section className="review-panel promote-admin-panel"><div><strong>관리자 권한</strong><span>이 계정에 운영자 전체 권한을 부여합니다.</span></div><div className="review-actions"><button className="promote-admin-button" disabled={saving} onClick={promoteAdmin}>{saving ? "처리 중…" : "관리자로 승격"}</button></div></section>
           {application && <section className="review-panel"><div><strong>신청서</strong><span>작가 신청 상세로 이동합니다.</span></div><div className="review-actions"><Link className="review-link-button" href={`/admin/applications/${encodeURIComponent(application.id)}`}>신청서 열기</Link></div></section>}
         </aside>
       </section>
